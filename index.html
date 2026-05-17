@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extraction du chiffre d'affaires</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================
+       RESET & VARIABLES
+       ============================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #faf9f6;
+      --ink: #18181b;
+      --line: #e7e5e4;
+      --line-soft: #f5f5f4;
+      --muted: #57534e;
+      --muted-soft: #a8a29e;
+      --muted-softer: #d6d3d1;
+      --accent: #3f6212;
+      --accent-soft: #f7faf3;
+      --error: #dc2626;
+      --error-bg: #fef2f2;
+      --error-text: #7f1d1d;
+
+      --font-display: 'Instrument Serif', Georgia, serif;
+      --font-body:    'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono:    'Geist Mono', ui-monospace, monospace;
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: inherit;
+    }
+
+    /* ============================================
+       LAYOUT
+       ============================================ */
+    main {
+      max-width: 44rem;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+    @media (min-width: 768px) { main { padding: 4rem 1.5rem; } }
+
+    .inline-mono {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ============================================
+       HEADER
+       ============================================ */
+    .header { margin-bottom: 3rem; }
+    .header-kicker {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .header h1 {
+      font-family: var(--font-display);
+      font-size: 3rem;
+      line-height: 1;
+      font-weight: 400;
+    }
+    @media (min-width: 768px) { .header h1 { font-size: 3.75rem; } }
+    .header h1 em { font-style: italic; }
+    .header p {
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+      max-width: 30rem;
+      line-height: 1.5;
+    }
+    .header p .inline-mono { color: var(--ink); }
+
+    /* ============================================
+       UPLOAD ZONE
+       ============================================ */
+    .upload-zone {
+      border: 1px dashed var(--muted-softer);
+      padding: 2.5rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background-color 0.2s, padding 0.2s;
+    }
+    .upload-zone.has-files {
+      border-color: var(--accent);
+      background-color: var(--accent-soft);
+      padding: 1.5rem 2rem;
+    }
+    .upload-zone.dragging {
+      border-color: var(--ink);
+      background-color: var(--line-soft);
+    }
+
+    .upload-empty { display: flex; align-items: center; gap: 1rem; }
+    .upload-empty svg { color: var(--muted-soft); }
+    .upload-empty-title { font-size: 0.875rem; font-weight: 500; }
+    .upload-empty-sub   { font-size: 0.75rem; color: var(--muted); margin-top: 0.125rem; }
+
+    .file-list-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.375rem 0;
+    }
+    .file-row .file-icon { color: var(--muted); flex-shrink: 0; display: inline-flex; }
+    .file-row .file-name {
+      font-size: 0.875rem;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-row .file-size {
+      font-size: 0.75rem;
+      color: var(--muted-soft);
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .file-row button.remove {
+      color: var(--muted-soft);
+      transition: color 0.15s;
+      display: inline-flex;
+      padding: 0.25rem;
+    }
+    .file-row button.remove:hover { color: var(--ink); }
+
+    .upload-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--line);
+    }
+
+    /* ============================================
+       ACTIONS
+       ============================================ */
+    .actions { margin-top: 1rem; display: flex; gap: 0.75rem; }
+    .btn-primary {
+      flex: 1;
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.75rem 1.25rem;
+      background-color: var(--ink);
+      color: var(--bg);
+      transition: background-color 0.2s;
+    }
+    .btn-primary:hover:not(:disabled) { background-color: #000; }
+    .btn-primary:disabled {
+      background-color: var(--line);
+      color: var(--muted-soft);
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      font-size: 0.875rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--muted-softer);
+      color: var(--muted);
+      transition: background-color 0.15s;
+      display: inline-flex;
+      align-items: center;
+    }
+    .btn-secondary:hover { background-color: var(--line-soft); }
+
+    /* ============================================
+       ERROR
+       ============================================ */
+    .error-block {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background-color: var(--error-bg);
+      border-left: 2px solid var(--error);
+    }
+    .error-block svg { color: var(--error); flex-shrink: 0; margin-top: 0.125rem; }
+    .error-block p { font-size: 0.875rem; color: var(--error-text); }
+
+    /* ============================================
+       RESULTS — STYLE DOCUMENT CLASSIQUE
+       ============================================ */
+    .results {
+      margin-top: 3rem;
+    }
+    .results-meta {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .date-group {
+      margin-bottom: 2.25rem;
+    }
+    .date-group:last-child { margin-bottom: 0; }
+
+    .date-header {
+      font-family: var(--font-display);
+      font-size: 1.625rem;
+      font-weight: 400;
+      line-height: 1.2;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+    .date-header .weekday::first-letter { text-transform: uppercase; }
+
+    .pos-table {
+      width: 100%;
+      border-top: 1px solid var(--line);
+    }
+    .pos-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .pos-row:last-child { border-bottom: 1px solid var(--line); }
+
+    .pos-name {
+      flex: 1;
+      font-size: 0.9375rem;
+      color: var(--ink);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pos-amount {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.9375rem;
+      color: var(--ink);
+      text-align: right;
+      min-width: 6rem;
+    }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      font-size: 0.8125rem;
+      padding: 0.25rem 0.625rem;
+      color: var(--muted);
+      border: 1px solid var(--muted-softer);
+      background: transparent;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover:not(.copied) { color: var(--ink); border-color: var(--ink); }
+    .copy-btn.copied {
+      color: var(--accent);
+      border-color: var(--accent);
+      background-color: var(--accent-soft);
+    }
+    .copy-btn svg { flex-shrink: 0; }
+
+    /* Bloc des erreurs en bas */
+    .errors-section {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+    }
+    .errors-section .errors-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--error);
+      margin-bottom: 0.75rem;
+    }
+    .error-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      font-size: 0.875rem;
+      padding: 0.5rem 0;
+    }
+    .error-row svg { color: var(--error); flex-shrink: 0; margin-top: 0.125rem; }
+    .error-row .error-filename { font-weight: 500; }
+    .error-row .error-msg { color: var(--muted); margin-top: 0.125rem; }
+
+    /* ============================================
+       HELP
+       ============================================ */
+    .help-text {
+      margin-top: 4rem;
+      font-size: 0.75rem;
+      color: var(--muted-soft);
+      max-width: 30rem;
+      line-height: 1.6;
+    }
+    .help-text .inline-mono { color: var(--muted); }
+
+    /* ============================================
+       ANIMATIONS
+       ============================================ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- En-tête statique -->
+    <header class="header">
+      <p class="header-kicker">Comptabilité — Outil</p>
+      <h1><em>Extraction</em><br>du chiffre d'affaires</h1>
+      <p>
+        Déposez un ou plusieurs exports d'écritures comptables. Chaque bloc
+        point de vente / jour est isolé, ses lignes <span class="inline-mono">M707</span>
+        additionnées, puis le tout est trié par date et par point de vente.
+      </p>
+    </header>
+
+    <!-- Zones dynamiques -->
+    <div id="upload-zone" class="upload-zone" data-action="open-picker"></div>
+    <input type="file" id="file-input" accept=".txt" multiple style="display:none">
+
+    <div id="actions" class="actions"></div>
+    <div id="error-block"></div>
+    <div id="results-block"></div>
+    <div id="help-block"></div>
+  </main>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /* ============================================
+       1. ICÔNES
+       ============================================ */
+    const iconPaths = {
+      upload:      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><line x1="12" x2="12" y1="3" y2="15"/>',
+      copy:        '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+      check:       '<polyline points="20 6 9 17 4 12"/>',
+      fileText:    '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/>',
+      alertCircle: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+      rotateCcw:   '<path d="M3 12a9 9 0 1 0 9-9 9.74 9.74 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+      x:           '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    };
+    const icon = (name, size = 16) =>
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
+
+    /* ============================================
+       2. ÉTAT
+       state.results contient TOUS les blocs parsés à plat (succès + erreurs).
+       L'agrégation et le groupement par date se font au rendu.
+       ============================================ */
+    const state = {
+      files: [],
+      results: [],     // chaque entrée = un bloc (POS+date) ou une erreur
+      error: null,
+      isProcessing: false,
+    };
+    let copiedKey = null;
+
+    function setState(updates) {
+      Object.assign(state, updates);
+      render();
+    }
+
+    /* ============================================
+       3. CONSTANTES & HELPERS
+       ============================================ */
+    const monthNames = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+    const weekdayNames = [
+      'dimanche', 'lundi', 'mardi', 'mercredi',
+      'jeudi', 'vendredi', 'samedi'
+    ];
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise((resolve, reject) => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); resolve(); }
+        catch (err) { reject(err); }
+        finally { document.body.removeChild(ta); }
+      });
+    }
+
+    function formatAmount(amount) {
+      return amount.toFixed(2).replace('.', ',');
+    }
+
+    /* ============================================
+       4. PARSING — DÉTECTION DES BLOCS
+       Un bloc est délimité par une ligne d'ouverture où le libellé
+       de 20 caractères (avant D+) se termine par 4 chiffres (date JJMM).
+       ============================================ */
+    function isBlockOpener(line) {
+      const dIdx = line.indexOf('D+');
+      if (dIdx === -1 || dIdx < 20) return false;
+      const label = line.substring(dIdx - 20, dIdx).trimEnd();
+      // Le libellé doit finir par JJMM ET avoir du contenu avant
+      return /\d{4}$/.test(label) && label.length > 4;
+    }
+
+    function parseBlock({ opener, m707 }) {
+      const dPlusIndex = opener.indexOf('D+');
+      const labelField = opener.substring(dPlusIndex - 20, dPlusIndex);
+      const trimmed    = labelField.trimEnd();
+
+      const dateRaw = trimmed.slice(-4);
+      const day      = parseInt(dateRaw.substring(0, 2), 10);
+      const monthNum = parseInt(dateRaw.substring(2, 4), 10);
+      if (monthNum < 1 || monthNum > 12) throw new Error('Mois invalide.');
+
+      const yearMatch = opener.match(/F\d{3}\d{4}(\d{2})\d/);
+      if (!yearMatch) throw new Error('Année introuvable.');
+      const year = 2000 + parseInt(yearMatch[1], 10);
+
+      const posName = trimmed.slice(0, -4).trim();
+      if (!posName) throw new Error('Nom de point de vente vide.');
+
+      if (m707.length === 0) {
+        throw new Error(`Aucune ligne M707 pour "${posName}" le ${day}/${monthNum}.`);
+      }
+
+      let totalCents = 0;
+      m707.forEach(line => {
+        const cPlusIndex = line.indexOf('C+');
+        if (cPlusIndex === -1) return;
+        const after = line.substring(cPlusIndex + 2);
+        const m = after.match(/^(\d+)/);
+        if (!m) return;
+        totalCents += parseInt(m[1], 10);
+      });
+
+      return {
+        posName,
+        year, monthNum, day,
+        total: totalCents / 100,
+        sortKey: year * 10000 + monthNum * 100 + day,
+      };
+    }
+
+    function parseFileContent(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length === 0) throw new Error('Fichier vide.');
+
+      // Découpe le fichier en blocs : chaque opener inaugure un bloc,
+      // on rattache toutes les M707 suivantes au bloc courant.
+      const blocks = [];
+      let current = null;
+
+      for (const line of lines) {
+        if (isBlockOpener(line)) {
+          if (current) blocks.push(current);
+          current = { opener: line, m707: [] };
+        } else if (current && line.startsWith('M707')) {
+          current.m707.push(line);
+        }
+      }
+      if (current) blocks.push(current);
+
+      if (blocks.length === 0) {
+        throw new Error('Aucun bloc reconnu dans ce fichier.');
+      }
+
+      // Parse chaque bloc indépendamment. Une erreur n'invalide que son bloc.
+      return blocks.map(b => {
+        try { return parseBlock(b); }
+        catch (err) { return { error: err.message }; }
+      });
+    }
+
+    /* ============================================
+       5. ACTIONS
+       ============================================ */
+    function addFiles(fileList) {
+      const valid = Array.from(fileList).filter(f =>
+        f.name.toLowerCase().endsWith('.txt')
+      );
+      if (valid.length === 0) {
+        setState({ error: 'Aucun fichier .txt valide.' });
+        return;
+      }
+      const existing = new Set(state.files.map(f => f.name));
+      const newOnes  = valid.filter(f => !existing.has(f.name));
+      setState({
+        files: [...state.files, ...newOnes],
+        results: [],
+        error: null,
+      });
+    }
+
+    function removeFile(idx) {
+      setState({
+        files: state.files.filter((_, i) => i !== idx),
+        results: [],
+      });
+    }
+
+    async function processFiles() {
+      if (state.files.length === 0) {
+        setState({ error: 'Veuillez sélectionner au moins un fichier.' });
+        return;
+      }
+      setState({ isProcessing: true, error: null });
+
+      const allResults = [];
+      for (const file of state.files) {
+        try {
+          const blockResults = parseFileContent(await file.text());
+          blockResults.forEach(r => allResults.push({ ...r, fileName: file.name }));
+        } catch (err) {
+          // Erreur fichier-niveau (vide, aucun bloc reconnu)
+          allResults.push({ fileName: file.name, error: err.message });
+        }
+      }
+      setState({ results: allResults, isProcessing: false });
+    }
+
+    /* ============================================
+       6. AGRÉGATION & GROUPEMENT POUR LE RENDU
+       Une même paire (date, POS) trouvée plusieurs fois → totaux sommés.
+       ============================================ */
+    function buildGroups() {
+      const successes = state.results.filter(r => !r.error);
+      const errors    = state.results.filter(r =>  r.error);
+
+      // Agrégation : clé unique (sortKey + nom du POS)
+      const aggMap = new Map();
+      for (const r of successes) {
+        const key = `${r.sortKey}|${r.posName}`;
+        if (aggMap.has(key)) {
+          aggMap.get(key).total += r.total;
+        } else {
+          aggMap.set(key, { ...r, copyKey: key });
+        }
+      }
+
+      // Groupement par date
+      const dateGroups = new Map();
+      for (const r of aggMap.values()) {
+        if (!dateGroups.has(r.sortKey)) {
+          dateGroups.set(r.sortKey, {
+            sortKey: r.sortKey,
+            year: r.year, monthNum: r.monthNum, day: r.day,
+            items: [],
+          });
+        }
+        dateGroups.get(r.sortKey).items.push(r);
+      }
+
+      // Tri alphabétique des POS dans chaque date (locale FR pour les accents)
+      for (const g of dateGroups.values()) {
+        g.items.sort((a, b) => a.posName.localeCompare(b.posName, 'fr'));
+      }
+
+      return {
+        groups: [...dateGroups.values()].sort((a, b) => a.sortKey - b.sortKey),
+        errors,
+      };
+    }
+
+    /* ============================================
+       7. COPIE
+       Mise à jour chirurgicale du bouton concerné — pas de re-render.
+       ============================================ */
+    function handleCopy(key) {
+      const { groups } = buildGroups();
+      let item = null;
+      for (const g of groups) {
+        item = g.items.find(i => i.copyKey === key);
+        if (item) break;
+      }
+      if (!item) return;
+
+      copyText(formatAmount(item.total)).then(() => {
+        copiedKey = key;
+        updateCopyButton(key);
+        setTimeout(() => {
+          if (copiedKey === key) {
+            copiedKey = null;
+            updateCopyButton(key);
+          }
+        }, 2000);
+      });
+    }
+
+    function updateCopyButton(key) {
+      const btn = document.querySelector(`.copy-btn[data-key="${CSS.escape(key)}"]`);
+      if (!btn) return;
+      const isCopied = copiedKey === key;
+      btn.classList.toggle('copied', isCopied);
+      btn.innerHTML = `${icon(isCopied ? 'check' : 'copy', 14)} ${isCopied ? 'Copié' : 'Copier'}`;
+    }
+
+    function reset() {
+      document.getElementById('file-input').value = '';
+      copiedKey = null;
+      setState({ files: [], results: [], error: null });
+    }
+
+    /* ============================================
+       8. RENDU
+       ============================================ */
+    function render() {
+      renderUploadZone();
+      renderActions();
+      renderError();
+      renderResults();
+      renderHelp();
+    }
+
+    function renderUploadZone() {
+      const zone = document.getElementById('upload-zone');
+      zone.classList.toggle('has-files', state.files.length > 0);
+
+      if (state.files.length === 0) {
+        zone.innerHTML = `
+          <div class="upload-empty">
+            ${icon('upload', 20)}
+            <div>
+              <p class="upload-empty-title">Glisser un ou plusieurs fichiers .txt</p>
+              <p class="upload-empty-sub">ou cliquer pour parcourir</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const plural = state.files.length > 1;
+      zone.innerHTML = `
+        <p class="file-list-label">${state.files.length} fichier${plural ? 's' : ''} prêt${plural ? 's' : ''}</p>
+        <div>
+          ${state.files.map((file, idx) => `
+            <div class="file-row">
+              <span class="file-icon">${icon('fileText', 16)}</span>
+              <span class="file-name">${escapeHtml(file.name)}</span>
+              <span class="file-size">${(file.size / 1024).toFixed(1)} Ko</span>
+              <button class="remove" data-action="remove-file" data-idx="${idx}" title="Retirer">
+                ${icon('x', 16)}
+              </button>
+            </div>
+          `).join('')}
+        </div>
+        <p class="upload-hint">Cliquer ou glisser pour ajouter d'autres fichiers</p>
+      `;
+    }
+
+    function renderActions() {
+      const el = document.getElementById('actions');
+      const canProcess = state.files.length > 0 && !state.isProcessing;
+      const hasContent = state.files.length > 0 || state.results.length > 0;
+
+      let label;
+      if (state.isProcessing)          label = 'Analyse en cours…';
+      else if (state.files.length > 1) label = `Lancer l'extraction (${state.files.length})`;
+      else                             label = "Lancer l'extraction";
+
+      el.innerHTML = `
+        <button class="btn-primary" data-action="process" ${canProcess ? '' : 'disabled'}>
+          ${escapeHtml(label)}
+        </button>
+        ${hasContent ? `
+          <button class="btn-secondary" data-action="reset" title="Tout réinitialiser">
+            ${icon('rotateCcw', 16)}
+          </button>
+        ` : ''}
+      `;
+    }
+
+    function renderError() {
+      const el = document.getElementById('error-block');
+      el.innerHTML = state.error ? `
+        <div class="error-block fade-up">
+          ${icon('alertCircle', 16)}
+          <p>${escapeHtml(state.error)}</p>
+        </div>
+      ` : '';
+    }
+
+    function renderResults() {
+      const el = document.getElementById('results-block');
+      if (state.results.length === 0) { el.innerHTML = ''; return; }
+
+      const { groups, errors } = buildGroups();
+      const totalEntries = groups.reduce((s, g) => s + g.items.length, 0);
+
+      el.innerHTML = `
+        <div class="results fade-up">
+          <p class="results-meta">
+            ${totalEntries} ligne${totalEntries > 1 ? 's' : ''}
+            sur ${groups.length} jour${groups.length > 1 ? 's' : ''}
+          </p>
+          ${groups.map(g => renderDateGroup(g)).join('')}
+          ${errors.length > 0 ? renderErrors(errors) : ''}
+        </div>
+      `;
+    }
+
+    function renderDateGroup(g) {
+      const d = new Date(g.year, g.monthNum - 1, g.day);
+      const weekday = weekdayNames[d.getDay()];
+      const dateStr = `${g.day} ${monthNames[g.monthNum - 1]} ${g.year}`;
+
+      return `
+        <section class="date-group">
+          <h3 class="date-header">
+            <span class="weekday">${weekday}</span> ${dateStr}
+          </h3>
+          <div class="pos-table">
+            ${g.items.map(item => renderPosRow(item)).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderPosRow(item) {
+      const isCopied = copiedKey === item.copyKey;
+      return `
+        <div class="pos-row">
+          <span class="pos-name">${escapeHtml(item.posName)}</span>
+          <span class="pos-amount">${formatAmount(item.total)} €</span>
+          <button class="copy-btn ${isCopied ? 'copied' : ''}"
+                  data-action="copy" data-key="${escapeHtml(item.copyKey)}">
+            ${icon(isCopied ? 'check' : 'copy', 14)}
+            ${isCopied ? 'Copié' : 'Copier'}
+          </button>
+        </div>
+      `;
+    }
+
+    function renderErrors(errors) {
+      return `
+        <div class="errors-section">
+          <p class="errors-label">${errors.length} erreur${errors.length > 1 ? 's' : ''} de lecture</p>
+          ${errors.map(e => `
+            <div class="error-row">
+              ${icon('alertCircle', 14)}
+              <div>
+                <p class="error-filename">${escapeHtml(e.fileName || '')}</p>
+                <p class="error-msg">${escapeHtml(e.error)}</p>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderHelp() {
+      const el = document.getElementById('help-block');
+      if (state.results.length > 0 || state.error) { el.innerHTML = ''; return; }
+      el.innerHTML = `
+        <p class="help-text">
+          Le programme détecte chaque bloc (un point de vente, un jour) à
+          l'ouverture de caisse, additionne ses lignes <span class="inline-mono">M707</span>,
+          puis agrège : un seul total par couple (date, point de vente) même
+          si les blocs sont répartis sur plusieurs fichiers. Tri par date
+          chronologique, puis par point de vente alphabétique.
+        </p>
+      `;
+    }
+
+    /* ============================================
+       9. ÉVÉNEMENTS
+       ============================================ */
+    function initEvents() {
+      document.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+
+        switch (target.dataset.action) {
+          case 'open-picker':
+            document.getElementById('file-input').click();
+            break;
+          case 'remove-file':
+            e.stopPropagation();
+            removeFile(+target.dataset.idx);
+            break;
+          case 'process':
+            if (!target.disabled) processFiles();
+            break;
+          case 'reset':
+            reset();
+            break;
+          case 'copy':
+            handleCopy(target.dataset.key);
+            break;
+        }
+      });
+
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        addFiles(e.target.files);
+        e.target.value = '';
+      });
+
+      const zone = document.getElementById('upload-zone');
+      let dragTimeout;
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('dragging');
+        clearTimeout(dragTimeout);
+      });
+      zone.addEventListener('dragleave', () => {
+        clearTimeout(dragTimeout);
+        dragTimeout = setTimeout(() => zone.classList.remove('dragging'), 50);
+      });
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        clearTimeout(dragTimeout);
+        zone.classList.remove('dragging');
+        addFiles(e.dataTransfer.files);
+      });
+    }
+
+    /* ============================================
+       10. INIT
+       ============================================ */
+    initEvents();
+    render();
+  })();
+  </script>
+</body>
+</html>
