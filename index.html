@@ -455,8 +455,13 @@
       const monthNum = parseInt(dateRaw.substring(2, 4), 10);
       if (monthNum < 1 || monthNum > 12) throw new Error('Mois invalide.');
 
-      const yearMatch = opener.match(/F\d{3}\d{4}(\d{2})\d/);
-      if (!yearMatch) throw new Error('Année introuvable.');
+      // Le préfixe contient : F + code journal + JJMM + AA + 1 chiffre.
+      // L'ancien logiciel sortait un journal de 3 chiffres (F100),
+      // le nouveau en sort 4 (F5000). On ancre donc la regex sur le
+      // JJMM déjà extrait du libellé : ainsi, peu importe la longueur
+      // du journal, les 2 chiffres juste après le JJMM sont l'année.
+      const yearMatch = opener.match(new RegExp('F\\d+' + dateRaw + '(\\d{2})\\d'));
+      if (!yearMatch) throw new Error('Année introuvable dans le préfixe.');
       const year = 2000 + parseInt(yearMatch[1], 10);
 
       const posName = trimmed.slice(0, -4).trim();
