@@ -341,7 +341,7 @@
       <h1><em>Extraction</em><br>du chiffre d'affaires</h1>
       <p>
         Déposez un ou plusieurs exports d'écritures comptables. Chaque bloc
-        point de vente / jour est isolé, ses lignes <span class="inline-mono">M707</span>
+        point de vente / jour est isolé, ses lignes de vente (comptes commençant par <span class="inline-mono">70</span>)
         additionnées, puis le tout est trié par date et par point de vente.
       </p>
     </header>
@@ -445,7 +445,7 @@
       return /\d{4}$/.test(label) && label.length > 4;
     }
 
-    function parseBlock({ opener, m707 }) {
+    function parseBlock({ opener, salesLines }) {
       const dPlusIndex = opener.indexOf('D+');
       const labelField = opener.substring(dPlusIndex - 20, dPlusIndex);
       const trimmed    = labelField.trimEnd();
@@ -471,12 +471,12 @@
       const posName = trimmed.slice(0, -4).trim();
       if (!posName) throw new Error('Nom de point de vente vide.');
 
-      if (m707.length === 0) {
-        throw new Error(`Aucune ligne M707 pour "${posName}" le ${day}/${monthNum}.`);
+      if (salesLines.length === 0) {
+        throw new Error(`Aucune ligne de vente (compte 70x) pour "${posName}" le ${day}/${monthNum}.`);
       }
 
       let totalCents = 0;
-      m707.forEach(line => {
+      salesLines.forEach(line => {
         const cPlusIndex = line.indexOf('C+');
         if (cPlusIndex === -1) return;
         const after = line.substring(cPlusIndex + 2);
@@ -498,16 +498,17 @@
       if (lines.length === 0) throw new Error('Fichier vide.');
 
       // Découpe le fichier en blocs : chaque opener inaugure un bloc,
-      // on rattache toutes les M707 suivantes au bloc courant.
+      // on rattache toutes les lignes de vente (comptes 70x) au bloc courant.
+      // Ces lignes commencent par M707, M708, etc. — toutes en M70.
       const blocks = [];
       let current = null;
 
       for (const line of lines) {
         if (isBlockOpener(line)) {
           if (current) blocks.push(current);
-          current = { opener: line, m707: [] };
-        } else if (current && line.startsWith('M707')) {
-          current.m707.push(line);
+          current = { opener: line, salesLines: [] };
+        } else if (current && /^M70\d/.test(line)) {
+          current.salesLines.push(line);
         }
       }
       if (current) blocks.push(current);
@@ -805,7 +806,7 @@
       el.innerHTML = `
         <p class="help-text">
           Le programme détecte chaque bloc (un point de vente, un jour) à
-          l'ouverture de caisse, additionne ses lignes <span class="inline-mono">M707</span>,
+          l'ouverture de caisse, additionne ses lignes de vente (comptes <span class="inline-mono">70x</span>),
           puis agrège : un seul total par couple (date, point de vente) même
           si les blocs sont répartis sur plusieurs fichiers. Tri par date
           chronologique, puis par point de vente alphabétique.
